@@ -127,7 +127,27 @@ My call: record every successful change and every REFUSED change or sign-in, but
 
 ## Phase 7 — the console
 
-_Where did the server's answer and your instinct disagree about what should be on screen?_
+### 2026-09-26 · web/
+
+Written with Claude Code: App.jsx (shell, org switcher, nav), api.js (token in memory only),one component per card, styles.css with one colour set per org theme.
+
+Presence: every gated button goes through one component (`Gate` in components/common.jsx)
+that renders nothing unless the server's entry is `allow`. The nav table in App.jsx names
+permissions, never roles. Device buttons read `device.permissions` from each row, so Dana sees Control on globex-desk-01 and not on globex-kiosk-02 with no logic in the browser.
+
+Instinct vs server: a hidden button can't explain why it's missing. So the header has a "why not the rest?" panel listing every permission you don't hold with the server's reason 
+"nobody granted it" (implicit) vs "taken away by grant:…" (explicit_deny).
+
+Things the API didn't have that the console needed:
+- a list of roles for the invite / role-change dropdowns. Hardcoding the five documented roles
+  would miss the personalised `reviewer`, so added `GET /v1/roles` (reads the table).
+- sign-out. With no logout route, the refresh cookie signs you straight back in on reload.
+  Added `POST /v1/auth/logout`: revokes the cookie's token family and clears the cookie.
+- a stale token (someone changed my permissions) used to mean "refresh", and refresh always
+  returns the alphabetically first org — so I'd be thrown out of the org I was in. api.js now refreshes and re-mints a token for the same org, then retries once.
+
+Testing: `npx playwright install chromium` still times out on this network, so I ran the
+unchanged suite in the Microsoft Edge that ships with Windows (a scratch Playwright config with `channel: 'msedge'`; the repo's config is untouched). First run: 24/25 — the one failure was Edge failing to launch on the first test, before any page loaded. Re-ran it alone: pass. Full re-run: 25/25. All suites together: UI 25, API 66, JWT 43, engine 35, personalisation 18.
 
 ## Phase 8 — hardening
 

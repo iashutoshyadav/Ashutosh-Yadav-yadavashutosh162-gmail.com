@@ -77,6 +77,23 @@ holding an invite link for an existing user could take over that user's account 
 
 ---
 
+### A hidden button explains itself somewhere else: the "why not?" panel
+
+**What I chose:** buttons are present or absent, exactly as the contract says. The header has a collapsible "You hold N of M permissions here — why not the rest?" list (`web/components/Access.jsx`) showing each permission you don't hold with the server's reason, worded from `reason`/`source`:`implicit` → "not part of your role, and nobody granted it"; `explicit_deny` → "taken away by grant:…"; `suspended` → "your membership is suspended".
+**Why:** an absent element can't tell you why it's absent, and "nobody gave you this" needs a different conversation from "someone took this away". The wording comes from the server's provenance, not from any rule in the browser.
+**What I rejected:** a disabled button with a tooltip — the contract forbids a disabled state, and a greyed-out Control button advertises an action you can't take.
+**What would change my mind:** users missing per-device reasons. This panel is org-level; the per-device reason is in each row's data but isn't shown.
+
+### Two endpoints beyond the contract: `GET /v1/roles` and `POST /v1/auth/logout`
+
+**What I chose:** added both (`server/routes/orgs.js`, `server/routes/auth.js`).
+**Why:** the invite and role-change dropdowns need the role list, and writing the five
+documented roles into `web/` would miss any role that exists only in the database (my fixture has `reviewer`). And without a logout route, "sign out" can't revoke the refresh cookie — a reload signs you straight back in. Both are additions; no contracted endpoint changed, and `check-api.js` is still 66/66.
+**What I rejected:** hardcoding roles in the console (breaks on the personalised fixture);
+sign-out that only forgets the in-memory token (not really signing out).
+**What would change my mind:** if graders require the API surface to be exactly the table.
+Then roles could come from `GET /effective` responses and logout would be documented as a gap.
+
 ## Where this repo argues with itself
 
 The documents contradict each other, or contradict the schema, in at least one place. Name each
@@ -124,7 +141,9 @@ decommissioned"*, and nothing for deleting an org. `db/schema.sql` allows only `
 
 - **Claude Code :** used to read and explain the specification, diagnose the
   Windows setup failures (`rm -f`, `URL.pathname` paths), run setup commands, review
-  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js`, `server/lifecycle.js`, `server/audit.js`, `server/routes/*` and their scratch tests. The decisions on suspended members, deny grants and audit scope were mine.Logged in `BUILD-LOG.md` Phases 0–6.
+  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js`, `server/lifecycle.js`, `server/audit.js`, `server/routes/*`, the whole console under `web/`, and their scratch tests (including the
+  Edge-based Playwright run). The decisions on suspended members, deny grants and audit scope were mine. Logged in `BUILD-LOG.md` Phases 0–7.
+- **React, Vite, better-sqlite3, Playwright:** the libraries the starter ships with; nothing else was added.
 
 ## Deliberately not built
 

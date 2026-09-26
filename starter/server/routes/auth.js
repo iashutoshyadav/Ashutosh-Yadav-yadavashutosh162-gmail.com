@@ -121,6 +121,22 @@ export function register(router, { db, secret }) {
     send(res, 200, sessionBody(tokenFor(row.user_id, orgs[0], secret), orgs[0], orgs));
   });
 
+  // POST /v1/auth/logout — not in the endpoint table, but without it "sign out" cannot end
+  // anything: the refresh cookie would sign the browser straight back in. Revokes the
+  // cookie's whole family and clears the cookie. Public: it needs only the cookie.
+  router.post('/v1/auth/logout', (ctx, _p, res) => {
+    const raw = readRefreshCookie(ctx.req);
+    if (raw) {
+      const row = db.prepare('SELECT family_id FROM refresh_tokens WHERE token_hash = ?').get(hashRefreshToken(raw));
+      if (row) {
+        db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL')
+          .run(nowIso(), row.family_id);
+      }
+    }
+    res.setHeader('set-cookie', `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/v1/auth; Max-Age=0`);
+    send(res, 204);
+  });
+
   // POST /v1/auth/token  { orgId } — switch org. A token names exactly one org, so switching
   // mints a new token rather than changing anything server-side.
   router.post('/v1/auth/token', (ctx, _p, res) => {

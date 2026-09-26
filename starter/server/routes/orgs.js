@@ -42,6 +42,16 @@ export function register(router, { db }) {
   const record = (ctx, action, targetType, targetId) =>
     audit(db, { orgId: ctx.orgId, actorId: ctx.userId, action, targetType, targetId, result: 'allow', requestId: ctx.requestId });
 
+  // --- roles ----------------------------------------------------------------------
+
+  // Not in the endpoint table: the console needs the role list for invites and role
+  // changes, and must not hardcode it (the database can hold roles no document mentions).
+  // Reference data only — who may assign which role is still decided server-side.
+  router.get('/v1/roles', (_ctx, _p, res) => {
+    const roles = db.prepare('SELECT key, label, rank FROM roles ORDER BY rank DESC').all();
+    send(res, 200, { roles });
+  });
+
   // --- orgs -----------------------------------------------------------------------
 
   router.get('/v1/orgs', (ctx, _p, res) => {
