@@ -72,8 +72,21 @@ Re-ran the experiment myself: commented out the length check, still 43/43, resto
 
 ## Phase 2 — caller context and the resolution engine
 
-_This is where most people's first model is wrong. Write down the model you started with, the
-observation that broke it, and the model you moved to. Be specific about the observation._
+### 2026-09-26 · context.js
+
+Wrote `authenticate()` with Claude Code. Order of checks: bearer header → `verifyAccessToken`
+→ membership joined with its org → removed/deleted → freshness → URL org must equal token org.
+
+Found a contradiction in AUTH-DATA-MODEL.md: suspension bumps `perm_version` (§1), which makes
+the member's token stale → 401, but §10 says a suspended member gets 403. I chose 403: skip the
+freshness check only for `suspended`. Written up in DECISIONS.md.
+
+Scratch test against a copy of app.db, 10 cases: valid → caller; no/garbage token → 401; Acme
+token on a Globex URL → 404 (invisible, not 403); stale pv → 401 TOKEN_STALE; removed → 401;
+deleted org → 404; suspended with its old token → passes through. That last one is only safe
+if permissions.js denies everything for `suspended` — must check that next.
+
+Can't run check-api.js yet: it needs the routes (Phase 3).
 
 ## Phase 3 — orgs, members, invites
 
