@@ -45,8 +45,30 @@ DECISIONS.md).
 
 ## Phase 1 — token verification
 
-_What did you expect each failure mode to look like before you ran it? Which one behaved
-differently from your expectation, and what did that tell you?_
+### 2026-09-26 · verifyAccessToken
+
+`check-jwt.js`: 43/43 on the first run. No test failed, so the suite gave me nothing to fix —
+which also means the suite alone can't tell me which of my checks are actually load-bearing.
+
+Design: every check throws a plain `Error`, and one outer `catch` in `verifyAccessToken`
+turns all of them into `401 invalid access token`. So a header that decodes to `null`, bad
+base64, or any unexpected throw becomes a 401 instead of a 500, and every rejection reads the
+same (no hint to an attacker about which check failed). Cost: a bug in my own code would also
+surface as "invalid token", which is harder to debug.
+
+Experiment: removed `actual.length !== expected.length ||` in front of `timingSafeEqual`
+(auth.js:106) and re-ran. Still 43/43 — including "signature truncated" and "signature empty".
+Reason: `timingSafeEqual` throws `ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH` when the lengths differ,
+and my outer `catch` turns that throw into the same 401. So in my code the length check is not
+what rejects a short signature — the catch-all is. Put it back anyway: it makes the rejection
+explicit instead of relying on an exception from a library, and it keeps working if the outer
+catch is ever narrowed. Lesson: a green suite doesn't prove each line matters; removing one
+does.
+
+Open: the payload is parsed before the signature is checked (auth.js:87). Nothing reads the
+claims until the signature passes, but verifying the signature first would be stricter.
+
+Re-ran the experiment myself: commented out the length check, still 43/43, restored it.
 
 ## Phase 2 — caller context and the resolution engine
 

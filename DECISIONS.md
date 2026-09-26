@@ -62,8 +62,8 @@ cannot tell the difference between a decision and an oversight.
 ## Sources and tools
 
 - **Claude Code (AI assistant):** used to read and explain the specification, diagnose the
-  Windows setup failures (`rm -f`, `URL.pathname` paths), and run setup commands. Logged in
-  `BUILD-LOG.md` Phase 0.
+  Windows setup failures (`rm -f`, `URL.pathname` paths), and run setup commands,review `verifyAccessToken`, and runt then length check experiment. Logged in
+  `BUILD-LOG.md` Phase 0-1.
 
 ## Deliberately not built
 
