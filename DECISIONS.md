@@ -11,42 +11,35 @@ Rules, from `DISCOVERY-BRIEF.md`:
 
 ---
 
-### <the decision, as a claim — not "permissions", but "the org-level view counts device-scoped grants">
+### The org-level view means "allowed on at least one device" — a deny on one device does not remove it org-wide
 
-**What I chose:**
-**Why:** _(evidence: test, log line, commit)_
-**What I rejected:** _(the plausible alternative, and the specific reason it fails)_
-**What would change my mind:**
+**What I chose:** `resolve()` with no device (nav and page gating) uses a `union` scope in
+`server/permissions.js`: an org-wide deny still wins everywhere, but a device-scoped deny only
+removes the permission on that device. The org-level answer is `allow` if the role baseline or an
+org-wide allow covers it, or if some device-scoped allow exists on a device that doesn't also
+deny it.
+**Why:** `PERMISSIONS.md` §3 calls the org-level view "the union across all devices in the org".
+Checked on the fixture: the Acme viewer is denied `device:view` on kiosk-lobby-01 only; per device
+that is `explicit_deny`, but org-level `device:view` stays `allow` (`role:viewer`), because she can
+still view the other four devices. `check-permissions.js` 35/35.
+**What I rejected:** applying every grant, device-scoped ones included, to the org-level question
+with deny-wins. Then a deny on one device would switch the permission off org-wide — the viewer
+would lose `device:view` everywhere because of one kiosk.
+**What would change my mind:** a nav item or page that should disappear when the permission is
+denied on any single device. I haven't found one in `UI-INVENTORY.md`; per-row buttons are
+resolved per device anyway.
 
-<!-- Copy the block above per decision. The two stubs below show the required shape and contain no
-     engineering content — replace or delete them. -->
+### No laundering: an org-wide grant needs org-wide authority
 
----
-
-### Stub — the shape of a weak "Why"
-
-**What I chose:** the obvious thing.
-**Why:** it is what the brief says to do.
-**What I rejected:** nothing, the alternative seemed worse.
-**What would change my mind:** I do not know.
-
-_Reads as a memory of the document, not a model of the system. Scores nothing._
-
----
-
-### Stub — the shape of a strong "Why"
-
-**What I chose:** X.
-**Why:** I implemented Y first, because Y is the intuitive precedence rule. `node scripts/check-
-permissions.js` reported `<the actual reason string it reported>` on the case where the two grants
-disagree. That is only reachable if the two are evaluated in a different order than Y assumes.
-Moved to X in `<commit>` and the case passed. Logged in `BUILD-LOG.md` under Phase 2.
-**What I rejected:** Y, and also "resolve the narrower one last" — both fail the same case for the
-same reason.
-**What would change my mind:** a case where a narrower grant is expected to survive a broader
-refusal. I could not construct one, which is itself evidence for X.
-
-_Shows what you believed, what disproved it, and what you did next._
+**What I chose:** `assertMayGrant` checks an org-wide grant against the caller's `orgWide` scope,
+where only org-wide grants and the role baseline count — not the org-level union.
+**Why:** with the union, Dana (a viewer in Globex with `device:control` on globex-desk-01 only)
+reads as holding `device:control` org-level. Checked: `assertMayGrant` refuses her org-wide
+`device:control` (403 `missing_permission`) and allows it scoped to globex-desk-01.
+**What I rejected:** reusing the org-level union for the laundering check. It would let a
+one-device allow be handed out across the whole org — exactly the escalation D9 forbids.
+**What would change my mind:** a case where the documents expect a device-scoped holder to grant
+org-wide. I found none.
 
 ---
 
@@ -82,14 +75,13 @@ active member → 401 `TOKEN_STALE`.
 **What I rejected:** always checking freshness (one rule, simpler). It makes the §10 behaviour
 unreachable — a suspended user would only ever see `TOKEN_STALE`.
 **What would change my mind:** if skipping the check let a suspended member do anything. It
-must not: that depends on `permissions.js` denying every permission for `suspended`, which I
-still have to build and test.
+must not, and it doesn't: `permissions.js` denies every permission for a `suspended` membership with reason `suspended` (`check-permissions.js` "suspended: device:list denied / reason=suspended").
 
 ## Sources and tools
 
-- **Claude Code (AI assistant):** used to read and explain the specification, diagnose the
+- **Claude Code :** used to read and explain the specification, diagnose the
   Windows setup failures (`rm -f`, `URL.pathname` paths), run setup commands, review
-  `verifyAccessToken`, run the length-check experiment, and write `server/context.js` and its scratch test (the suspended-member choice was mine). Logged in `BUILD-LOG.md` Phases 0–2.
+  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js` and their scratch tests (the suspended-member choice was mine). Logged in `BUILD-LOG.md` Phases 0–2.
 
 ## Deliberately not built
 

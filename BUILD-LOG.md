@@ -80,6 +80,16 @@ Scratch test against a copy of app.db, 10 cases: valid → caller; no/garbage to
 deleted org → 404; suspended with its old token → passes through. That last one is only safe if permissions.js denies everything for `suspended` — must check that next.
 Can't run check-api.js yet: it needs the routes (Phase 3).
 
+### 2026-09-26 · permissions.js
+
+Written with Claude Code. Reads the catalogue, baseline, membership and grants from the database on every call; nothing about roles is in the code. Precedence per permission: explicit deny > role baseline > allow grant > implicit deny.
+
+Results: `check-permissions.js` 35/35, `npm run personalisation` 18/18 — so the undocumented `reviewer` role and `device:reboot` permission resolve with no special code, just from the tables. The suspended case from context.js is now closed: suspended → every permission denied, reason `suspended`.
+
+Question the docs left open: what does the org-level (no device) answer mean when a permission is denied on ONE device? If every device-scoped grant applies with deny-wins, the Acme viewer's deny on kiosk-lobby-01 would switch `device:view` off for the whole org. Chose "allowed on at least one device" instead: org-level `device:view` for her = allow (role:viewer), on the kiosk = explicit_deny. Knock-on: that union makes Dana (Globex viewer, control on one device) look like
+she holds `device:control` org-level — so the laundering check uses org-wide authority only.
+Checked: she can't grant it org-wide (403), can grant it on globex-desk-01. Both in DECISIONS.md.
+
 ## Phase 3 — orgs, members, invites
 
 _Anything you had to work out that no document states. Invite lifecycle states are a common
