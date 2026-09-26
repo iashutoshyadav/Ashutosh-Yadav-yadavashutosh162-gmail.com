@@ -41,6 +41,40 @@ one-device allow be handed out across the whole org — exactly the escalation D
 **What would change my mind:** a case where the documents expect a device-scoped holder to grant
 org-wide. I found none.
 
+### The no-laundering check applies to allow grants, not to deny grants
+
+**What I chose:** `POST /grants` calls `assertMayGrant` only when `effect` is `allow`
+(`server/routes/devices.js`).
+**Why:** laundering means handing out authority you don't have. A deny only takes authority
+away. Checked: an Acme admin (no `org:delete`) is refused `allow org:delete` and `allow *` (403), and may create `deny org:delete` for a viewer (201).
+**What I rejected:** checking denies too, the literal reading of `AUTH-DATA-MODEL.md` §8 ("the caller holds every permission being granted"). It would stop an admin from restricting a viewer's `org:delete` — a harmless restriction — for no security gain.
+**What would change my mind:** a way a deny grant can increase someone's authority. Deny always wins and never allows, so I can't construct one.
+
+### The audit log records refused changes, not refused reads
+
+**What I chose:** `auditDenials` wraps the permission check on routes that change something
+(and sign-in); plain `GET` routes call `assertCan` without it. Success rows are written inside the same transaction as the change.
+**Why:** the console opens several gated pages; logging every refused GET would fill the log with noise and hide "who tried to change what". `check-api.js` "audit records DENIED attempts too" passes: the viewer's refused session start is there with `reason_code = missing_permission`.
+**What I rejected:** auditing every 403. Complete, but one page load could write several rows.
+**What would change my mind:** a requirement to know who tried to *read* something they
+couldn't — then GETs on sensitive resources (audit, members) would be wrapped too.
+
+### An invite never changes an existing account's password
+
+**What I chose:** accepting an invite for an email that already has an account attaches the
+membership and ignores `name`/`password`. Only a brand-new account takes them.
+**Why:** the invite token is a bearer credential. If accept could set the password, anyone
+holding an invite link for an existing user could take over that user's account in every org. Checked: viewer removed → re-invited → accepted with an empty body → same user id, old password still works.
+**What I rejected:** always writing the submitted password (simpler form handling).
+**What would change my mind:** a flow where the existing user is signed in when accepting — then the account is proven and a password isn't needed at all.
+
+### Routes that ask no permission question still refuse a suspended member
+
+**What I chose:** `POST /v1/orgs` checks that the caller's membership is active before creating an org.
+**Why:** a suspended member gets through `context.js` on purpose (see the TOKEN_STALE decision), and the engine refuses them — but only on routes that ask it. Creating an org asks no permission, so without an explicit check a suspended member could still create orgs.
+**What I rejected:** relying on the engine alone.
+**What would change my mind:** nothing about the principle; the risk is a route I missed. The other ungated routes (`/auth/me`, `/auth/token`, leave, your own session, your own effective permissions) only read, switch away, or reduce your access.
+
 ---
 
 ## Where this repo argues with itself
@@ -77,11 +111,20 @@ unreachable — a suspended user would only ever see `TOKEN_STALE`.
 **What would change my mind:** if skipping the check let a suspended member do anything. It
 must not, and it doesn't: `permissions.js` denies every permission for a `suspended` membership with reason `suspended` (`check-permissions.js` "suspended: device:list denied / reason=suspended").
 
+### The schema's end reasons have no value for decommissioning or deleting an org
+
+`PERMISSIONS.md` §7 lists `device_transferred` for *"the device is transferred or
+decommissioned"*, and nothing for deleting an org. `db/schema.sql` allows only `user_stopped, user_suspended, membership_removed, device_transferred, admin_terminated, session_expired, superseded` — anything else fails the CHECK constraint.
+
+**What I chose:** decommission ends sessions as `device_transferred` (as §7 says); deleting an org ends them as `admin_terminated`, the closest existing value.
+**Why:** I can't edit the schema, and a new value would be a database error.
+**What I'd argue for:** separate `device_decommissioned` and `org_deleted` values, so the session history says what actually happened.
+
 ## Sources and tools
 
 - **Claude Code :** used to read and explain the specification, diagnose the
   Windows setup failures (`rm -f`, `URL.pathname` paths), run setup commands, review
-  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js` and their scratch tests (the suspended-member choice was mine). Logged in `BUILD-LOG.md` Phases 0–2.
+  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js`, `server/lifecycle.js`, `server/audit.js`, `server/routes/*` and their scratch tests. The decisions on suspended members, deny grants and audit scope were mine.Logged in `BUILD-LOG.md` Phases 0–6.
 
 ## Deliberately not built
 

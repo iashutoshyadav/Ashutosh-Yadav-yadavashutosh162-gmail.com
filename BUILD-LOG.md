@@ -92,22 +92,38 @@ Checked: she can't grant it org-wide (403), can grant it on globex-desk-01. Both
 
 ## Phase 3 — orgs, members, invites
 
-_Anything you had to work out that no document states. Invite lifecycle states are a common
-source of this._
+### 2026-09-26 · all routes + lifecycle.js + audit.js
+
+Written with Claude Code, in one pass: lifecycle.js, audit.js and the five route files. I made two calls when asked (deny grants skip the laundering check; only refused changes are audited — see Phase 4 and 6). `check-api.js`: 66/66 on the first run. The earlier suites still pass (43, 35, 18).
+
+Because the public suite passed first time, it can't tell me much. So a scratch test with 21 awkward cases the suite doesn't cover, all passing. The ones worth remembering:
+
+- Re-inviting a removed member. `memberships` is UNIQUE(org_id, user_id) and removal only sets
+  status='removed', so the row is still there — accept has to UPDATE it back to active, an
+  INSERT would hit the constraint. Checked: remove viewer → re-invite → accept → same user id.
+- An invite for someone who already has an account must NOT set their password: otherwise
+  whoever holds the invite link could take over the account. Existing accounts are attached and
+  keep their password (checked: old password still works after accept).
+- POST /orgs asks no permission question, so the engine's "suspended = deny everything" never
+  runs there. Added an explicit active-membership check on that route.
+- Owners: the rank rule says you can only change members ranked below you, but check-api expects
+  an owner to demote another owner (200). So owners are exempt from the rank rule; the
+  last-owner check still protects the org.
 
 ## Phase 4 — devices and grants
 
-_What happens at the boundary where two grants disagree, or where a grant's scope and the
-question's scope differ? Say what you predicted and what you got._
+Laundering: an admin cannot grant `org:delete` or `*` (403 — she doesn't hold org:delete), but CAN create a deny of `org:delete`: my choice was that taking authority away is not escalation.
+A grant naming another org's device → 404, not 403.
+Transfer: grants that named the device are revoked (revoked_at), not deleted, so the history survives. Checked: viewer-in-target → 403; owner-in-target → 200 and the device is 404 in the old org; target org she isn't in → 404.
 
 ## Phase 5 — sessions
 
-_Two permissions, one device. What did you have to resolve, and in what order, to keep the two
-failure reasons distinguishable?_
+Race test: 4 `control` starts on one device fired in parallel → exactly one 201 and three 409 DEVICE_BUSY. There is no "is the device free?" check in the code; the INSERT hits the partial unique index `one_exclusive_session_per_device`, and the 409 comes from catching that error.
+Order in assertCanStartSession: session:start first (reason missing_permission), then the mode permission (reason missing_device_permission), so the caller can tell "you can't open sessions here" from "not in this mode". Expired sessions are ended lazily before a start, otherwise an expired control session would hold its device forever.
 
 ## Phase 6 — audit
 
-_What did you decide counts as an auditable event, and what pushed you to that line?_
+My call: record every successful change and every REFUSED change or sign-in, but not refused reads. A refused GET is usually the console probing a page, and would bury the attempts that matter. Success rows are written inside the same transaction as the change, so a change that rolls back leaves no audit row. Failed sign-in for a real account is recorded in each of that user's orgs; an unknown email can't be — audit rows need an org.
 
 ## Phase 7 — the console
 
