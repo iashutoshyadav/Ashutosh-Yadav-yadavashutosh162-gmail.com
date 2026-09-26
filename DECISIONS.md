@@ -89,8 +89,7 @@ still have to build and test.
 
 - **Claude Code (AI assistant):** used to read and explain the specification, diagnose the
   Windows setup failures (`rm -f`, `URL.pathname` paths), run setup commands, review
-  `verifyAccessToken`, run the length-check experiment, and write `server/context.js` and its
-  scratch test (the suspended-member choice was mine). Logged in `BUILD-LOG.md` Phases 0–2.
+  `verifyAccessToken`, run the length-check experiment, and write `server/context.js` and its scratch test (the suspended-member choice was mine). Logged in `BUILD-LOG.md` Phases 0–2.
 
 ## Deliberately not built
 
