@@ -17,7 +17,9 @@ import { send, sendError, readJson, notFound } from './http.js';
 import { authenticate } from './context.js';
 import { registerRoutes } from './routes/index.js';
 
-const DEV = process.env.NODE_ENV !== 'production';
+// Production mode: NODE_ENV=production (what the test harnesses set), or `--production`
+// (what `npm start` passes — setting an env var inline is not portable to Windows shells).
+const DEV = process.env.NODE_ENV !== 'production' && !process.argv.includes('--production');
 const PORT = Number(process.env.PORT ?? 8080);
 const SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-me';
 const DIST = fileURLToPath(new URL('../dist/', import.meta.url));

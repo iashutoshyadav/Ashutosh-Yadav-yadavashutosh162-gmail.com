@@ -151,10 +151,51 @@ unchanged suite in the Microsoft Edge that ships with Windows (a scratch Playwri
 
 ## Phase 8 — hardening
 
-_What did you measure, what did you fix, and what did you deliberately leave alone? Anything you
-chose not to build belongs here with its reason._
+### 2026-09-27 · npm start, measurements
+
+Fixed: `npm start` was `NODE_ENV=production node server/index.js` — inline env vars are Unix
+shell syntax, so it failed on Windows. The server now also accepts `--production`, and
+`npm start` passes it. Checked with no NODE_ENV set: banner says "(production)" and `GET /`
+serves the built index.html from dist/. The test harnesses still set NODE_ENV and are unchanged.
+
+Measured (scratch script, local server in production mode, 20 requests each after a warm-up):
+
+| Request | Avg |
+|---|---|
+| GET /auth/me (org-level resolve of 20 permissions) | 5.9 ms |
+| GET /devices, 5 devices | 2.8 ms |
+| GET /devices, 505 devices + 200 device-scoped grants | 36.1 ms |
+
+The device list runs the same 4 queries however many devices there are (`resolveDevices` loads
+once, then decides per row in memory) — no query per row. But the in-memory part is not free:
+for each device × each permission it scans the grant list, so time grows with devices × grants
+— about 66 µs per extra device at 200 grants. Fine at this size; see Open threads.
+
+Also re-checked the earlier hardening (Phase 3–5 scratch test, 21 cases): parallel exclusive
+sessions (1 winner of 4), malformed JSON → 400, garbage token → 401, re-invite after removal,
+laundering refusals, transfer rules.
+
+Left alone on purpose: see "Deliberately not built" in DECISIONS.md.
 
 ## Open threads
 
-_Things you know are wrong, unfinished, or that you would do differently with another day. Listing
-these honestly is worth more than pretending they do not exist — we will find them anyway._
+Known gaps and things I'd do with another day, most important first:
+
+1. **The refresh cookie has no `Secure` flag.** AUTH-DATA-MODEL §2 asks for it, but with it the
+   cookie isn't sent over plain `http://localhost`, which is how the app runs here. Behind HTTPS
+   it must be switched on.
+2. **No login rate limit.** Nothing stops password guessing apart from scrypt being slow.
+3. **Device list cost grows with devices × grants** (measured above). Fix: group the grant rows by
+   device once before deciding, so each row only looks at its own grants.
+4. **Creating a device checks `device:provision` at org level (the union).** So someone who holds
+   provision on just one device can add new devices to the org. Creating should probably require
+   org-wide provision, like the laundering check does.
+5. **A reload always lands in the alphabetically first org** — the refresh token doesn't remember
+   which org you were in. Mid-session stale tokens do keep you in your org (api.js re-mints for the
+   same org), but F5 doesn't.
+6. **The payload is parsed before the signature is checked** (auth.js). Nothing trusts it early,
+   but checking the signature first would be stricter.
+7. **UI tests were run in Edge, not Playwright's Chromium,** because the Chromium download times out
+   on my network. The suite and the repo's config are unchanged; graders' Chromium should behave
+   the same, but I couldn't prove it on this machine.
+8. **Device transfer has an API but no button** in the console.

@@ -141,11 +141,27 @@ decommissioned"*, and nothing for deleting an org. `db/schema.sql` allows only `
 
 - **Claude Code :** used to read and explain the specification, diagnose the
   Windows setup failures (`rm -f`, `URL.pathname` paths), run setup commands, review
-  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js`, `server/lifecycle.js`, `server/audit.js`, `server/routes/*`, the whole console under `web/`, and their scratch tests (including the
-  Edge-based Playwright run). The decisions on suspended members, deny grants and audit scope were mine. Logged in `BUILD-LOG.md` Phases 0–7.
+  `verifyAccessToken`, run the length-check experiment, and write `server/context.js`, `server/permissions.js`, `server/lifecycle.js`, `server/audit.js`, `server/routes/*`, the whole console under `web/`, and their scratch tests (including the Edge-based Playwright run). The decisions on suspended members, deny grants and audit scope were mine. Logged in `BUILD-LOG.md` Phases 0–7.
 - **React, Vite, better-sqlite3, Playwright:** the libraries the starter ships with; nothing else was added.
 
 ## Deliberately not built
 
-What you chose not to build, and the reason. A scope cut with a stated reason is a senior
-judgement. An unmentioned gap is a gap.
+- **Real remote access** — no screen capture, input or shell. Sessions are records; that is a hard
+  rule of the brief, not a scope choice. The "Transfer files" button only explains this.
+- **Email delivery for invites** — the API returns the invite link once and the console shows it
+  to copy. Sending mail needs an external service and credentials the task doesn't provide.
+- **Password reset / change password** — not in the endpoint table, and a reset flow is its own
+  security problem (tokens, expiry, enumeration). Out of scope for two days.
+- **Rate limiting on sign-in** — it matters for production (see Open threads), but it needs state
+  per IP/account and a policy; I spent the time on the permission model instead.
+- **Pagination except on the audit log** — members, devices, grants and sessions are small in any
+  org this build will see (the device list is 36 ms at 505 devices). The audit log grows without
+  bound, so it is the one list that pages (limit 1–200, out-of-range is a 400, not clamped).
+- **Search and bulk actions** — useful at scale, but they add surface without touching the
+  permission model, which is what this task is about.
+- **A device-transfer button** — the API endpoint exists and is tested; the console has no form
+  for it yet.
+- **Caching of resolved permissions** — every request resolves fresh from the database (4 queries
+  for a whole device list). There is nothing to invalidate, so nothing can serve stale authority.
+  A cache would have to be keyed by (user, org) and checked against `perm_version`, and at these
+  timings it isn't needed.
